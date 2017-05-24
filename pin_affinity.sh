@@ -67,8 +67,6 @@ foundev() {
     done
 }
 
-[[ $(awk 'END{print NF}' $cpu_pin) -eq 3 ]] && echo "Enable HT" && export ENHT=0
-[[ $(awk 'END{print NF}' $cpu_pin) -eq 2 ]] && echo "Disable HT" && export ENHT=1
 
 pin_pcie() {
      [[ ! -d $hex_path ]] && mkdir $hex_path
@@ -123,16 +121,25 @@ mapping_irq() {
         do
           [[ $cutcount -gt $arr_length ]] && cutcount=1 
           core=$(echo $cpu_hex | cut -d" " -f $cutcount)
-          echo "echo ${core} > /proc/irq/${i}/smp_affinity"
+          if [[ $((${core}/100000000)) -gt 0 ]]
+          then
+             echo "echo $((${core}/100000000))",00000000" > /proc/irq/${i}/smp_affinity"
+          else
+             echo "echo ${core} > /proc/irq/${i}/smp_affinity"
+          fi
           ((cutcount ++))
         done
      done
 }
 
+[[ $(awk 'END{print NF}' $cpu_pin) -eq 3 ]] && echo "Enable HT" && export ENHT=0
+[[ $(awk 'END{print NF}' $cpu_pin) -eq 2 ]] && echo "Disable HT" && export ENHT=1
 ###############get parameter#############
 echo "#### disable irq balance"
 echo systemctl disable irqbalance
 echo systemctl stop irqbalance
+echo sysctl -w kernel.perf_event_max_sample_rate=40000
+grep numa_balancing /etc/sysctl.conf || echo "kernel.numa_balancing=0" >> /etc/sysctl.conf && sysctl -p
 for ar in ${BASH_ARGV[*]}
 do
    foundev $ar
